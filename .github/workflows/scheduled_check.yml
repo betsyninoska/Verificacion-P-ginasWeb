@@ -1,0 +1,31 @@
+name: Verificacion Diaria de Sitios Web
+
+on:
+  # Programador (Scheduler) para la ejecución diaria
+  schedule:
+    # El tiempo está en UTC (Coordinated Universal Time).
+    # 7:30 AM en tu zona horaria puede ser diferente.
+    # Ejemplo: Si estás en UTC-4 (como Caracas), 7:30 AM sería 11:30 UTC.
+    # El siguiente cron (30 11 * * *) ejecutará el trabajo a las 11:30 UTC.
+    # Asegúrate de ajustar 11:30 al equivalente de 7:30 AM en tu huso horario local.
+    - cron: '30 11 * * *' 
+  
+  # Permite la ejecución manual desde la pestaña 'Actions'
+  workflow_dispatch:
+
+jobs:
+  check-websites:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del Repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x' 
+
+      - name: Ejecutar el Script de Verificación
+        run: |
+          echo "Iniciando verificación programada..."
+          python verificar_webs.py
