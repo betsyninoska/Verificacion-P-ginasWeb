@@ -1,0 +1,59 @@
+name: Verificacion Diaria de Sitios Web
+
+on:
+  schedule:
+    # Ajusta esta hora (11:30 UTC) a tu 7:30 AM local (ej: UTC-4)
+    - cron: '30 11 * * *' 
+  workflow_dispatch:
+
+jobs:
+  check-websites:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del Repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x' 
+
+      - name: Ejecutar y Guardar el Reporte
+        # Ejecuta el script y redirige toda la salida (los resultados de la verificación)
+        # al archivo 'reporte_diario.txt'
+        run: |
+          echo "Iniciando verificación programada..."
+          python verificar_webs.py > reporte_diario.txt
+          cat reporte_diario.txt # Imprime el contenido al log de GitHub Actions
+
+      - name: Enviar Reporte por Correo Electrónico 📧
+        uses: dawidd6/action-send-mail@v3
+        with:
+          # --- Configuración del Servidor SMTP (Ejemplo: Gmail) ---
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true # Usar SSL
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+
+          # --- Configuración del Correo ---
+          subject: Reporte de Verificación de Sitios Web - ${{ github.event.schedule }}
+          # Dirección de correo a la que se enviará el reporte
+          to: tu_correo_de_destino@dominio.com 
+          from: ${{ secrets.MAIL_USERNAME }}
+          
+          # Adjunta el archivo de resultados como cuerpo del mensaje
+          body: |
+            Adjunto el reporte de la verificación de sitios web realizado por GitHub Actions.
+            
+            ---
+            
+            (Contenido del reporte a continuación:)
+            
+            ${{ env.REPORT_BODY }}
+            
+          # Adjuntar el archivo de reporte
+          attachments: reporte_diario.txt
+          
+        env:
+          REPORT_BODY: ${{ steps.email_body.outputs.content }}

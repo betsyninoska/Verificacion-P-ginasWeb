@@ -1,16 +1,9 @@
 name: Verificacion Diaria de Sitios Web
 
 on:
-  # Programador (Scheduler) para la ejecución diaria
   schedule:
-    # El tiempo está en UTC (Coordinated Universal Time).
-    # 7:30 AM en tu zona horaria puede ser diferente.
-    # Ejemplo: Si estás en UTC-4 (como Caracas), 7:30 AM sería 11:30 UTC.
-    # El siguiente cron (30 11 * * *) ejecutará el trabajo a las 11:30 UTC.
-    # Asegúrate de ajustar 11:30 al equivalente de 7:30 AM en tu huso horario local.
+    # CRON: 30 11 * * * es 11:30 AM UTC, que es 7:30 AM en UTC-4 (ej: Venezuela)
     - cron: '30 11 * * *' 
-  
-  # Permite la ejecución manual desde la pestaña 'Actions'
   workflow_dispatch:
 
 jobs:
@@ -25,7 +18,30 @@ jobs:
         with:
           python-version: '3.x' 
 
-      - name: Ejecutar el Script de Verificación
+      - name: Ejecutar y Preparar Reporte para Telegram
+        id: generate_report
         run: |
-          echo "Iniciando verificación programada..."
-          python verificar_webs.py
+          # 1. Ejecuta el script de verificación y guarda TODA la salida en full_report.txt
+          python verificar_webs.py > full_report.txt
+          
+          # 2. Prepara el mensaje para Telegram (Límite de caracteres)
+          # Se toman las primeras 15 líneas del reporte.
+          # Se usa 'sed' para reemplazar saltos de línea (\n) por %0A (URL encoding para newline).
+          # Esto asegura que el mensaje se muestre bien formateado en Telegram.
+          TELEGRAM_MESSAGE=$(cat full_report.txt | head -n 15 | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/%0A/g')
+          
+          # 3. Hace que la variable esté disponible para el siguiente paso
+          echo "TELEGRAM_MESSAGE=$TELEGRAM_MESSAGE" >> $GITHUB_ENV
+          
+          # 4. Imprime el reporte completo en los logs de GitHub
+          cat full_report.txt
+
+      - name: Enviar Notificación a Telegram 💬
+        run: |
+          echo "Enviando reporte a Telegram..."
+          
+          # Llama a la API de sendMessage de Telegram usando cURL.
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" \
+          -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+          -d text="*Reporte de Sitios Web (7:30 AM)*%0A%0A${{ env.TELEGRAM_MESSAGE }}" \
+          -d parse_mode=Markdown # Usa Markdown para que el título salga en negritas

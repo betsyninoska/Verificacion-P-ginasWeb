@@ -13,28 +13,22 @@ def verificar_url(url):
     if not url.startswith('http://') and not url.startswith('https://'):
         url = 'https://' + url
 
-    # Usamos un contexto SSL no verificado para manejar certificados autofirmados/antiguos,
-    # común en entornos de prueba o locales. En producción, esto no es recomendable.
+    # Usamos un contexto SSL no verificado (opcional, para entornos difíciles)
     ssl_context = ssl._create_unverified_context()
 
     try:
         # Configuración de la solicitud (HEAD es más rápido que GET)
         req = urllib.request.Request(url, method='HEAD')
-        
-        # Simula un navegador para evitar ser bloqueado
         req.add_header('User-Agent', 'Mozilla/5.0 (compatible; URLChecker/1.0)')
 
-        # Abre la URL y espera la respuesta con un tiempo límite
         with urllib.request.urlopen(req, timeout=TIMEOUT_SECONDS, context=ssl_context) as response:
-            return response.getcode() # Devuelve el código de estado (e.g., 200)
+            return response.getcode()
 
     except urllib.error.HTTPError as e:
-        return e.code  # Devuelve códigos de error HTTP (e.g., 404, 503)
+        return e.code
     except urllib.error.URLError as e:
-        # Esto captura fallos de DNS, timeouts (si el servidor no responde nada), etc.
-        return 0  # Código 0 para fallos de red/conexión
+        return 0
     except Exception as e:
-        # Captura otros errores inesperados
         return -1
 
 def clasificar_codigo(code):
@@ -50,39 +44,40 @@ def clasificar_codigo(code):
     else:
         return f"❓ FALLO DESCONOCIDO (Código: {code})"
 
-def main():
-    """Función principal del script."""
+def generar_reporte():
+    """Lee las URLs y genera el reporte completo como una cadena de texto."""
+    reporte = []
+    
     try:
         with open(URL_FILE, 'r') as f:
             urls = f.readlines()
     except FileNotFoundError:
-        print(f"Error: El archivo de listado '{URL_FILE}' no se encontró.")
-        print(f"Crea un archivo llamado '{URL_FILE}' con una URL por línea.")
-        sys.exit(1)
+        return f"Error: El archivo de listado '{URL_FILE}' no se encontró."
 
-    print("--- Iniciando verificación de sitios web (Python) ---")
-    print(f"URLs a verificar en: {URL_FILE}")
-    print("-----------------------------------------------------")
+    reporte.append("--- Iniciando verificación de sitios web (Python) ---")
+    reporte.append(f"URLs a verificar en: {URL_FILE}")
+    reporte.append("-----------------------------------------------------")
 
     for line in urls:
-        # Limpia espacios y caracteres de nueva línea
         url = line.strip()
 
-        # Omite líneas vacías o comentarios (que comienzan con #)
         if not url or url.startswith('#'):
             continue
         
-        # Muestra la URL que se está verificando
-        print(f"Verificando {url}...", end=" ")
-
-        # Realiza la verificación y clasificación
+        # Simula la impresión en una sola línea y añade el resultado
         code = verificar_url(url)
         resultado = clasificar_codigo(code)
+        reporte.append(f"Verificando {url}... {resultado}")
 
-        print(resultado)
+    reporte.append("-----------------------------------------------------")
+    reporte.append("Verificación finalizada.")
+    
+    return "\n".join(reporte) # Devuelve todo el reporte como una única cadena
 
-    print("-----------------------------------------------------")
-    print("Verificación finalizada.")
+def main():
+    # La función main simplemente imprime el reporte completo.
+    # Esto asegura que GitHub Actions pueda capturarlo completamente.
+    print(generar_reporte())
 
 if __name__ == "__main__":
     main()
