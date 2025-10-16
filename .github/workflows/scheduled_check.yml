@@ -2,8 +2,12 @@ name: Verificacion Diaria de Sitios Web
 
 on:
   schedule:
-    # CRON: 30 11 * * * es 11:30 AM UTC, que es 7:30 AM en UTC-4 (ej: Venezuela)
+    # 7:30 AM local (11:30 AM UTC)
     - cron: '30 11 * * *' 
+
+    # 1:00 PM local (5:00 PM UTC)
+    - cron: '00 17 * * *'
+
   workflow_dispatch:
 
 jobs:
@@ -21,27 +25,37 @@ jobs:
       - name: Ejecutar y Preparar Reporte para Telegram
         id: generate_report
         run: |
-          # 1. Ejecuta el script de verificación y guarda TODA la salida en full_report.txt
+          # 1. Obtener la fecha y hora de la ejecución, ajustada a UTC-4 (tu hora local)
+          # Esto garantiza que el reporte muestre la hora correcta (ej: 7:30 AM o 1:00 PM).
+          # Usamos "TZ='America/Caracas'" para forzar el huso horario.
+          FECHA_HORA_LOCAL=$(TZ='America/Caracas' date +"%Y-%m-%d %H:%M %p %Z")
+          
+          # 2. Ejecuta el script de verificación y guarda TODA la salida
           python verificar_webs.py > full_report.txt
           
-          # 2. Prepara el mensaje para Telegram (Límite de caracteres)
-          # Se toman las primeras 15 líneas del reporte.
-          # Se usa 'sed' para reemplazar saltos de línea (\n) por %0A (URL encoding para newline).
-          # Esto asegura que el mensaje se muestre bien formateado en Telegram.
-          TELEGRAM_MESSAGE=$(cat full_report.txt | head -n 15 | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/%0A/g')
+          # 3. Construye el encabezado del mensaje con la fecha y hora dinámica
+          TITULO_MENSAJE="*Reporte de Sitios Web del ${FECHA_HORA_LOCAL}*"
           
-          # 3. Hace que la variable esté disponible para el siguiente paso
-          echo "TELEGRAM_MESSAGE=$TELEGRAM_MESSAGE" >> $GITHUB_ENV
+          # 4. Prepara el cuerpo del mensaje (primeras 15 líneas del reporte)
+          # Escapa saltos de línea (\n) a %0A y comillas (")
+          REPORTE_CUERPO=$(cat full_report.txt | head -n 15 | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/%0A/g')
           
-          # 4. Imprime el reporte completo en los logs de GitHub
+          # 5. Combina el título y el cuerpo del mensaje
+          MENSAJE_COMPLETO="${TITULO_MENSAJE}%0A%0A${REPORTE_CUERPO}"
+          
+          # 6. Hace la variable del mensaje completa disponible para el siguiente paso
+          echo "TELEGRAM_MESSAGE=$MENSAJE_COMPLETO" >> $GITHUB_ENV
+          
+          # 7. Imprime el reporte completo en los logs de GitHub
           cat full_report.txt
 
       - name: Enviar Notificación a Telegram 💬
         run: |
           echo "Enviando reporte a Telegram..."
           
-          # Llama a la API de sendMessage de Telegram usando cURL.
+          # Llama a la API de sendMessage, usando la variable de entorno que contiene
+          # el título dinámico y el cuerpo.
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" \
           -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
-          -d text="*Reporte de Sitios Web (7:30 AM)*%0A%0A${{ env.TELEGRAM_MESSAGE }}" \
-          -d parse_mode=Markdown # Usa Markdown para que el título salga en negritas
+          -d text="${{ env.TELEGRAM_MESSAGE }}" \
+          -d parse_mode=Markdown
